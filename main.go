@@ -5,13 +5,8 @@ import (
 )
 
 func main() {
-	var expr = "2+             2 *  5"
-	var wrap = NewWrapper(expr)
-
-	for wrap.Ch != CH_EOT {
-		fmt.Print(string(wrap.Ch))
-		wrap.NextChar()
-	}
-
-	fmt.Println()
+	//	var expr = "2+             2 *  5"
+	var Lexer = NewLexer("pi")
+	fmt.Println(Lexer.Name)
+	fmt.Println(Lexer.Token)
 }
