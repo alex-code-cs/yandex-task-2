@@ -83,15 +83,39 @@ func (l *Lexer) ident() {
 }
 
 // Не проверяет первый символ на цифру
-func (l *Lexer) number() {
-
+func (l *Lexer) number() error {
+	var str string
+	for isNumber(l.wrap.Ch) {
+		str += string(l.wrap.Ch)
+		l.wrap.NextChar()
+	}
+	if l.wrap.Ch == ',' {
+		str += "."
+		l.wrap.NextChar()
+		if !(isNumber(l.wrap.Ch)) {
+			return fmt.Errorf("Ожидалась цифра, но %c", l.wrap.Ch)
+		}
+		for isNumber(l.wrap.Ch) {
+			str += string(l.wrap.Ch)
+			l.wrap.NextChar()
+		}
+		l.Token = LEX_FLOAT_NUMBER
+		l.FloatValue.SetString(str)
+	} else {
+		l.Token = LEX_INT_NUMBER
+		l.IntValue.SetString(str, 10)
+	}
+	return nil
 }
 
 func (l *Lexer) NextLex() error {
 	if isAlpha(l.wrap.Ch) {
 		l.ident()
 	} else if isNumber(l.wrap.Ch) {
-		l.number()
+		err := l.number()
+		if err != nil {
+			return err
+		}
 	} else {
 		switch l.wrap.Ch {
 		case '+':
