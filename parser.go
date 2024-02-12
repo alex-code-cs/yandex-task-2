@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"math/big"
 )
 
@@ -147,4 +148,80 @@ func NewLexer(s string) *Lexer {
 	lexer.wrap = NewWrapper(s)
 	lexer.NextLex()
 	return &lexer
+}
+
+// #######       Парсер    ##############
+/*
+
+Выражение = Слагаемое {ОперСлож Слагаемое}
+Слагаемое = Множитель {ОперУмнож Множитель}
+Множитель = Число | Идентификатор | "(" Выражение ")"
+ОперСлож = "+" | "-"
+ОперУмнож = "*" | "/"
+Число = Цифра {Цифра}
+Идентификатор = Буква {Буква}
+*/
+
+var lexer *Lexer
+var nameTable [string]double
+
+func SetNameTable(){
+	nameTable["pi"] = Math.pi
+}
+
+func Parse(expr string) {
+	SetNameTable()
+	lexer = NewLexer(expr)
+	expression()
+}
+
+func expression() {
+	term() // слагаемое
+	for lexer.Token == LEX_MINUS || lexer.Token == LEX_PLUS{
+		lexer.NextLex()
+		term()
+	} 
+}
+
+func term(){
+	factor(); //множитель
+	for lexer.Token == LEX_MULTIPLY || lexer.Token == LEX_DIVIDE{
+		lexer.NextLex()
+		factor()
+	} 
+}
+
+func factor() {
+	if lexer.Token == LEX_INT_NUMBER ||lexer.Token == LEX_Float_NUMBER{
+		llexer.NewLexer()
+	}
+}
+
+
+func Token(token Lex){
+	switch token{
+	case 0:
+	
+	case 1
+
+	case 2
+
+	case 3
+
+	case 4
+
+	case 5
+
+	case 6
+
+	case 7
+
+	case 8
+
+	case 9
+
+	case 10
+
+	case 11
+	}
 }
