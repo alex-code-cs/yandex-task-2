@@ -6,18 +6,15 @@ import (
 
 func main() {
 	//	var expr = "2+             2 *  5"
-	var lexer = NewLexer("pi *10 + 3")
+	var expr = "(5+5) + pi"
+	var lexer, err = NewLexer(expr)
 	for lexer.Token != LEX_EOT {
-		if lexer.Token == LEX_IDENT {
-			fmt.Printf("%d\t%s\n", lexer.Token, lexer.Name)
-		} else if lexer.Token == LEX_INT_NUMBER {
-			fmt.Printf("%d\t%d\n", lexer.Token, lexer.IntValue.Int64())
-		} else if lexer.Token == LEX_FLOAT_NUMBER {
-			var floatValue, _ = lexer.FloatValue.Float64()
-			fmt.Printf("%d\t%f\n", lexer.Token, floatValue)
-		} else {
-			fmt.Printf("%d\n", lexer.Token)
+		//	fmt.Println(lexer.Token)
+		if err != nil {
+			//fmt.Println(err)
 		}
-		lexer.NextLex()
+		err = lexer.NextLex()
 	}
+	err = Parse(expr)
+	fmt.Println(err)
 }

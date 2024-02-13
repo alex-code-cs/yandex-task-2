@@ -56,11 +56,11 @@ const LEX_NONE Lex = 10
 const LEX_FLOAT_NUMBER = 11
 
 func isNumber(c byte) bool {
-	return c >= '0' && c <= '9'
+	return c >= 48 && c <= 57
 }
 
 func isAlpha(c byte) bool {
-	return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
+	return (c >= 65 && c <= 90) || (c >= 97 && c <= 122)
 }
 
 type Lexer struct {
@@ -94,7 +94,11 @@ func (l *Lexer) number() error {
 		str += "."
 		l.wrap.NextChar()
 		if !(isNumber(l.wrap.Ch)) {
-			return fmt.Errorf("Ожидалась цифра, но %c", l.wrap.Ch)
+			if l.wrap.Ch == CH_EOT {
+				return fmt.Errorf("Ожидалась цифра, но EOT")
+			} else {
+				return fmt.Errorf("Ожидалась цифра, но %c", l.wrap.Ch)
+			}
 		}
 		for isNumber(l.wrap.Ch) {
 			str += string(l.wrap.Ch)
@@ -143,17 +147,20 @@ func (l *Lexer) NextLex() error {
 	return nil
 }
 
-func NewLexer(s string) *Lexer {
+func NewLexer(s string) (*Lexer, error) {
 	var lexer = Lexer{}
 	lexer.wrap = NewWrapper(s)
-	lexer.NextLex()
-	return &lexer
+	var err = lexer.NextLex()
+	if err != nil {
+		return nil, err
+	}
+	return &lexer, nil
 }
 
 // #######       Парсер    ##############
 /*
 
-Выражение = Слагаемое {ОперСлож Слагаемое}
+Выражение = Слагаемое {ОперСлож Слагаемое} (5+5)*5
 Слагаемое = Множитель {ОперУмнож Множитель}
 Множитель = Число | Идентификатор | "(" Выражение ")"
 ОперСлож = "+" | "-"
@@ -163,65 +170,101 @@ func NewLexer(s string) *Lexer {
 */
 
 var lexer *Lexer
-var nameTable [string]double
+var nameTable map[string]float64
 
-func SetNameTable(){
-	nameTable["pi"] = Math.pi
+func SetNameTable() {
+	nameTable = make(map[string]float64)
+	nameTable["pi"] = math.Pi
 }
 
-func Parse(expr string) {
+func Parse(expr string) error {
 	SetNameTable()
-	lexer = NewLexer(expr)
-	expression()
-}
-
-func expression() {
-	term() // слагаемое
-	for lexer.Token == LEX_MINUS || lexer.Token == LEX_PLUS{
-		lexer.NextLex()
-		term()
-	} 
-}
-
-func term(){
-	factor(); //множитель
-	for lexer.Token == LEX_MULTIPLY || lexer.Token == LEX_DIVIDE{
-		lexer.NextLex()
-		factor()
-	} 
-}
-
-func factor() {
-	if lexer.Token == LEX_INT_NUMBER ||lexer.Token == LEX_Float_NUMBER{
-		llexer.NewLexer()
+	var err error
+	lexer, err = NewLexer(expr)
+	if err != nil {
+		return err
 	}
+	err = expression()
+	if err != nil {
+		return err
+	}
+	if lexer.Token != LEX_EOT {
+		return fmt.Errorf("Ожидался конец текста")
+	}
+
+	return nil
 }
 
-
-func Token(token Lex){
-	switch token{
-	case 0:
-	
-	case 1
-
-	case 2
-
-	case 3
-
-	case 4
-
-	case 5
-
-	case 6
-
-	case 7
-
-	case 8
-
-	case 9
-
-	case 10
-
-	case 11
+// Выражение = Слагаемое {ОперСлож Слагаемое}
+func expression() error {
+	var err = term() // слагаемое
+	if err != nil {
+		return err
 	}
+	for lexer.Token == LEX_MINUS || lexer.Token == LEX_PLUS {
+		err = lexer.NextLex()
+		if err != nil {
+			return err
+		}
+		err = term()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Слагаемое = Множитель {ОперУмнож Множитель}
+func term() error {
+	var err = factor() //множитель
+	if err != nil {
+		return err
+	}
+
+	for lexer.Token == LEX_MULTIPLY || lexer.Token == LEX_DIVIDE {
+		err = lexer.NextLex()
+		if err != nil {
+			return err
+		}
+		err = factor()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Множитель = Число | Идентификатор | "(" Выражение ")"
+func factor() error {
+	if lexer.Token == LEX_INT_NUMBER || lexer.Token == LEX_FLOAT_NUMBER {
+		var err = lexer.NextLex()
+		if err != nil {
+			return err
+		}
+	} else if lexer.Token == LEX_IDENT {
+		var _, ok = nameTable[lexer.Name]
+		if !ok {
+			return fmt.Errorf("Неизвестный иденфикатор! %s", lexer.Name)
+		}
+		var err = lexer.NextLex()
+		if err != nil {
+			return err
+		}
+	} else if lexer.Token == LEX_LBRACE {
+		var err = lexer.NextLex()
+		if err != nil {
+			return err
+		}
+		err = expression()
+		if err != nil {
+			return err
+		}
+		if lexer.Token != LEX_RBRACE {
+			return fmt.Errorf("Ожидалось скобка )")
+		}
+		lexer.NextLex()
+	} else {
+		return fmt.Errorf("Ожидалось число, имя или выражение в скобках")
+	}
+	return nil
 }
