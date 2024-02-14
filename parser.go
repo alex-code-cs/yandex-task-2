@@ -42,7 +42,7 @@ func isWhitespace(c byte) bool {
 
 type Lex = int
 
-const LEX_INT_NUMBER Lex = 0
+const LEX_NUMBER Lex = 0
 const LEX_IDENT Lex = 1
 const LEX_PLUS Lex = 2
 const LEX_MINUS Lex = 3
@@ -53,7 +53,6 @@ const LEX_LBRACE Lex = 7
 const LEX_RBRACE Lex = 8
 const LEX_EOT Lex = 9
 const LEX_NONE Lex = 10
-const LEX_FLOAT_NUMBER = 11
 
 func isNumber(c byte) bool {
 	return c >= 48 && c <= 57
@@ -66,7 +65,6 @@ func isAlpha(c byte) bool {
 type Lexer struct {
 	Token      Lex
 	Lex        rune
-	IntValue   big.Int   // на случай если лексема - целое число
 	FloatValue big.Float // на случай если лексема - дробное число
 	Name       string    // на случай если лексема - идентификатор
 	wrap       *Wrapper
@@ -104,12 +102,9 @@ func (l *Lexer) number() error {
 			str += string(l.wrap.Ch)
 			l.wrap.NextChar()
 		}
-		l.Token = LEX_FLOAT_NUMBER
-		l.FloatValue.SetString(str)
-	} else {
-		l.Token = LEX_INT_NUMBER
-		l.IntValue.SetString(str, 10)
 	}
+	l.Token = LEX_NUMBER
+	l.FloatValue.SetString(str)
 	return nil
 }
 
@@ -172,6 +167,13 @@ func NewLexer(s string) (*Lexer, error) {
 var lexer *Lexer
 var nameTable map[string]float64
 
+type Node struct {
+	left      *Node
+	right     *Node
+	operation Lex
+	value     big.Float
+}
+
 func SetNameTable() {
 	nameTable = make(map[string]float64)
 	nameTable["pi"] = math.Pi
@@ -196,37 +198,49 @@ func Parse(expr string) error {
 }
 
 // Выражение = Слагаемое {ОперСлож Слагаемое}
-func expression() error {
-	var err = term() // слагаемое
+func expression(node **Node) error {
+	var err = term(node) // слагаемое
 	if err != nil {
 		return err
 	}
 	for lexer.Token == LEX_MINUS || lexer.Token == LEX_PLUS {
+		var tmp = node                  // запоминаем старое поддерево
+		*node = &Node{}                 // создаем новую ноду
+		(*node).operation = lexer.Token // не забываем про операцию
+		(*node).left = *tmp             // подцепляем старое поддерево слева
 		err = lexer.NextLex()
 		if err != nil {
 			return err
 		}
-		err = term()
-		if err != nil {
-			return err
-		}
+		(*node) = &Node{}            // по соглашению создаем объект в памяти заранее
+		err = term((&(*node).right)) // правую часть дерева отдаем на откуп term()
 	}
+
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
 // Слагаемое = Множитель {ОперУмнож Множитель}
-func term() error {
-	var err = factor() //множитель
+func term(node **Node) error {
+	var err = factor(node) //множитель
 	if err != nil {
 		return err
 	}
 
 	for lexer.Token == LEX_MULTIPLY || lexer.Token == LEX_DIVIDE {
+		var tmp = node
+		*node = &Node{}
+		(*node).left = *tmp
+		(*node).operation = lexer.Token
 		err = lexer.NextLex()
 		if err != nil {
 			return err
 		}
-		err = factor()
+		(*node).right = &Node{}
+		err = factor(&(*node).right)
 		if err != nil {
 			return err
 		}
@@ -235,8 +249,10 @@ func term() error {
 }
 
 // Множитель = Число | Идентификатор | "(" Выражение ")"
-func factor() error {
-	if lexer.Token == LEX_INT_NUMBER || lexer.Token == LEX_FLOAT_NUMBER {
+func factor(node **Node) error {
+	if lexer.Token == LEX_NUMBER {
+		(*node).value = lexer.FloatValue // не забываем числовое значение
+		(*node).operation = LEX_NONE
 		var err = lexer.NextLex()
 		if err != nil {
 			return err
@@ -246,6 +262,7 @@ func factor() error {
 		if !ok {
 			return fmt.Errorf("Неизвестный иденфикатор! %s", lexer.Name)
 		}
+		(*node).value.SetFloat64(nameTable[lexer.Name])
 		var err = lexer.NextLex()
 		if err != nil {
 			return err
@@ -255,16 +272,34 @@ func factor() error {
 		if err != nil {
 			return err
 		}
-		err = expression()
+		err = expression(node)
 		if err != nil {
 			return err
 		}
 		if lexer.Token != LEX_RBRACE {
-			return fmt.Errorf("Ожидалось скобка )")
+			return fmt.Errorf("Ожидалась скобка )")
 		}
 		lexer.NextLex()
 	} else {
 		return fmt.Errorf("Ожидалось число, имя или выражение в скобках")
 	}
 	return nil
+}
+
+func calculate(node *Node) big.Float {
+	if node.left == nil && node.right == nil {
+		return node.value
+	}
+	var leftResult big.Float = calculate(node.left)
+	var rightResult big.Float = calculate(node.right)
+	switch node.operation {
+	case LEX_PLUS:
+		return *(leftResult.Add(&leftResult, &rightResult))
+	case LEX_MINUS:
+		return *(leftResult.Sub(&leftResult, &rightResult))
+	case LEX_DIVIDE:
+		return *(leftResult.Quo(&leftResult, &rightResult))
+	case LEX_MULTIPLY:
+		return *(leftResult.Mul(&leftResult, &rightResult))
+	}
 }
